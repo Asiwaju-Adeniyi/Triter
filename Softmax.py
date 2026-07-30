@@ -51,33 +51,33 @@ def naive_softmax(x: torch.Tensor)-> torch.Tensor:
 
   def softmax(x:torch.Tensor)->torch.Tensor:
     """Triton impl of Softmax, fwd pass only"""
-     rows, cols = x.shape
-     assert x.dim() ==2, f"only accepts 2D tensors for now"
-     block_size = triton.next_power_of_2(cols)
-     num_warps = 4  # *32
-     if block_size > 2047: #2048
+  rows, cols = x.shape
+  assert x.dim() ==2, f"only accepts 2D tensors for now"
+  block_size = triton.next_power_of_2(cols)
+  num_warps = 4  # *32
+  if block_size > 2047: #2048
           num_warps = 8
-     if block_size > 4095: #4096
+  if block_size > 4095: #4096
           num_warps = 16
 
-     grid = (rows, )
+  grid = (rows, )
 
      #allocate out output buffer
-     sm_out = torch.empty_like(x)
+  sm_out = torch.empty_like(x)
 
 
-     _softmax_fwd_kernel[grid] (
+  _softmax_fwd_kernel[grid] (
          sm_out,
          sm_out.stride(0),
          x,
          x.stride(0),
          cols,
          block_size=block_size,
-         num_warps, =num_warps,
+         num_warps = num_warps,
 
      )
 
-    return sm_out
+  return sm_out
 
 
 union = torch.tensor([[12,34,35,35,36,70], [1,23,46,90,43,35]], dtype=torch.float32, device = 'cuda')
@@ -85,8 +85,8 @@ sam = F.softmax(union, dim = 1)
 print(F"{sam}")
 
 
-eager_out = naive_softmax(sam)
+eager_out = naive_softmax(union)
 print(f"{eager_out=}")
 
 triton_out = softmax(union)
-printf(f"{triton_out=}")
+print(f"{triton_out=}")
