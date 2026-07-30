@@ -13,9 +13,9 @@ def naive_softmax(x: torch.Tensor)-> torch.Tensor:
   sm_out = numerator/denominator[:, None]
   return sm_out
 
-  @triton.jit
+@triton.jit
 
-  def _softmax_fwd_kernel(
+def _softmax_fwd_kernel(
       output_ptr,
       stride_output_row,
       input_ptr,
@@ -42,42 +42,44 @@ def naive_softmax(x: torch.Tensor)-> torch.Tensor:
 
     #write back to HBM
 
-    output_row_ptr = output_ptr + (row_index * strdie_output_row)
-    output_pointers = output_ptr + col_offsets
+    output_row_ptr = output_ptr + (row_index * stride_output_row)
+    output_pointers = output_row_ptr + col_offsets 
     tl.store(output_pointers, sm_out, mask=row_mask)
 
 
 
 
-  def softmax(x:torch.Tensor)->torch.Tensor:
-    """Triton impl of Softmax, fwd pass only"""
-  rows, cols = x.shape
-  assert x.dim() ==2, f"only accepts 2D tensors for now"
-  block_size = triton.next_power_of_2(cols)
-  num_warps = 4  # *32
-  if block_size > 2047: #2048
-          num_warps = 8
-  if block_size > 4095: #4096
-          num_warps = 16
+def softmax(x: torch.Tensor):
 
-  grid = (rows, )
+    rows, cols = x.shape
 
-     #allocate out output buffer
-  sm_out = torch.empty_like(x)
+    assert x.dim() == 2
 
+    block_size = triton.next_power_of_2(cols)
 
-  _softmax_fwd_kernel[grid] (
-         sm_out,
-         sm_out.stride(0),
-         x,
-         x.stride(0),
-         cols,
-         block_size=block_size,
-         num_warps = num_warps,
+    num_warps = 4
 
-     )
+    if block_size > 2047:
+        num_warps = 8
 
-  return sm_out
+    if block_size > 4095:
+        num_warps = 16
+
+    grid = (rows,)
+
+    sm_out = torch.empty_like(x)
+
+    _softmax_fwd_kernel[grid](
+        sm_out,
+        sm_out.stride(0),
+        x,
+        x.stride(0),
+        cols,
+        block_size=block_size,
+        num_warps=num_warps,
+    )
+
+    return sm_out
 
 
 union = torch.tensor([[12,34,35,35,36,70], [1,23,46,90,43,35]], dtype=torch.float32, device = 'cuda')
